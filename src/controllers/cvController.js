@@ -72,15 +72,33 @@ const downloadCV = async (req, res) => {
       return res.status(404).json({ message: 'Aucun CV trouvé' });
     }
 
-    // Extraire le public_id depuis l'URL Cloudinary stockée en base
-    // URL format: https://res.cloudinary.com/cloud/raw/upload/v123/portfolio/cv/cv-xxx.pdf
-    const urlParts = cv.filePath.match(/\/upload\/(?:v\d+\/)?(.+)$/);
-    if (!urlParts) {
-      return res.status(500).json({ message: 'URL CV invalide en base de données' });
-    }
+    // Extraire le public_id — gère tous les formats Cloudinary possibles :
+    // https://res.cloudinary.com/cloud/raw/upload/v123/portfolio/cv/cv-xxx.pdf
+    // https://res.cloudinary.com/cloud/raw/upload/portfolio/cv/cv-xxx.pdf
+    // https://res.cloudinary.com/cloud/image/upload/v123/portfolio/cv/cv-xxx.pdf
+    let publicId;
+    try {
+      const uploadIndex = cv.filePath.indexOf('/upload/');
+      if (uploadIndex === -1) throw new Error('pas de /upload/ dans URL');
 
-    const publicId = urlParts[1].replace(/\.[^.]+$/, ''); // enlever l'extension
-    console.log(`[downloadCV] public_id : ${publicId}`);
+      let afterUpload = cv.filePath.substring(uploadIndex + 8); // +8 = longueur de '/upload/'
+
+      // Enlever le préfixe de version si présent (v1234567890/)
+      afterUpload = afterUpload.replace(/^v\d+\//, '');
+
+      // Enlever l'extension du fichier
+      publicId = afterUpload.replace(/\.[^/.]+$/, '');
+
+      console.log(`[downloadCV] filePath en base : ${cv.filePath}`);
+      console.log(`[downloadCV] public_id extrait : ${publicId}`);
+
+    } catch (e) {
+      console.error('[downloadCV] Impossible d\'extraire public_id :', e.message);
+      return res.status(500).json({
+        message: 'URL CV invalide en base de données',
+        filePath: cv.filePath,
+      });
+    }
 
     // Générer URL signée via l'API Cloudinary (valable 5 minutes)
     const signedUrl = cloudinary.utils.private_download_url(publicId, 'pdf', {
