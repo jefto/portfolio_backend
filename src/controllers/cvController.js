@@ -72,41 +72,36 @@ const downloadCV = async (req, res) => {
       return res.status(404).json({ message: 'Aucun CV trouvé' });
     }
 
-    // Extraire le public_id — gère tous les formats Cloudinary possibles :
-    // https://res.cloudinary.com/cloud/raw/upload/v123/portfolio/cv/cv-xxx.pdf
-    // https://res.cloudinary.com/cloud/raw/upload/portfolio/cv/cv-xxx.pdf
-    // https://res.cloudinary.com/cloud/image/upload/v123/portfolio/cv/cv-xxx.pdf
+    console.log(`[downloadCV] filePath en base : ${cv.filePath}`);
+
+    // Extraire le public_id — gère /upload/, /private/, /authenticated/
     let publicId;
     try {
-      const uploadIndex = cv.filePath.indexOf('/upload/');
-      if (uploadIndex === -1) throw new Error('pas de /upload/ dans URL');
+      const match = cv.filePath.match(
+        /\/(?:upload|private|authenticated)\/(?:s--[^/]+--\/)?(?:v\d+\/)?(.+)$/
+      );
+      if (!match) throw new Error('Format URL Cloudinary non reconnu');
 
-      let afterUpload = cv.filePath.substring(uploadIndex + 8); // +8 = longueur de '/upload/'
-
-      // Enlever le préfixe de version si présent (v1234567890/)
-      afterUpload = afterUpload.replace(/^v\d+\//, '');
-
-      // Enlever l'extension du fichier
-      publicId = afterUpload.replace(/\.[^/.]+$/, '');
-
-      console.log(`[downloadCV] filePath en base : ${cv.filePath}`);
+      // Enlever l'extension
+      publicId = match[1].replace(/\.[^/.]+$/, '');
       console.log(`[downloadCV] public_id extrait : ${publicId}`);
 
     } catch (e) {
-      console.error('[downloadCV] Impossible d\'extraire public_id :', e.message);
+      console.error('[downloadCV] Extraction public_id échouée :', e.message);
       return res.status(500).json({
-        message: 'URL CV invalide en base de données',
+        message: 'URL CV invalide',
         filePath: cv.filePath,
+        error: e.message,
       });
     }
 
-    // Générer URL signée via l'API Cloudinary (valable 5 minutes)
+    // Générer URL signée (valable 5 minutes)
     const signedUrl = cloudinary.utils.private_download_url(publicId, 'pdf', {
       resource_type: 'raw',
       expires_at: Math.floor(Date.now() / 1000) + 300,
     });
 
-    console.log(`[downloadCV] URL signée générée`);
+    console.log(`[downloadCV] URL signée générée pour : ${publicId}`);
 
     // Headers AVANT tout stream
     const filename = encodeURIComponent(cv.originalName || 'CV.pdf');
@@ -114,52 +109,44 @@ const downloadCV = async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`);
     res.setHeader('Cache-Control', 'no-cache');
 
-    // Stream depuis Cloudinary vers le client via https natif
+    // Stream Cloudinary → client via https natif
     const request = https.get(signedUrl, (response) => {
-      // Vérifier que Cloudinary répond bien 200
       if (response.statusCode !== 200) {
-        console.error(`[downloadCV] Cloudinary status : ${response.statusCode}`);
+        console.error(`[downloadCV] Cloudinary HTTP ${response.statusCode}`);
         if (!res.headersSent) {
-          res.status(502).json({ message: 'Erreur récupération fichier Cloudinary' });
+          res.status(502).json({ message: `Cloudinary a répondu ${response.statusCode}` });
         }
         return;
       }
 
-      // Propager Content-Length si disponible (évite la troncature du fichier)
+      // Propager Content-Length pour éviter la troncature
       if (response.headers['content-length']) {
         res.setHeader('Content-Length', response.headers['content-length']);
       }
 
-      // Pipe propre : Cloudinary → client
       response.pipe(res);
 
       response.on('error', (err) => {
         console.error('[downloadCV] Erreur stream :', err.message);
-        if (!res.headersSent) {
-          res.status(500).json({ message: 'Erreur stream' });
-        }
+        if (!res.headersSent) res.status(500).end();
       });
     });
 
     request.on('error', (err) => {
-      console.error('[downloadCV] Erreur connexion :', err.message);
-      if (!res.headersSent) {
-        res.status(500).json({ message: 'Erreur connexion Cloudinary' });
-      }
+      console.error('[downloadCV] Erreur requête :', err.message);
+      if (!res.headersSent) res.status(500).json({ message: err.message });
     });
 
-    // Timeout 30 secondes pour éviter les connexions ouvertes indéfiniment
+    // Timeout 30 secondes
     request.setTimeout(30000, () => {
       request.destroy();
-      if (!res.headersSent) {
-        res.status(504).json({ message: 'Timeout téléchargement' });
-      }
+      if (!res.headersSent) res.status(504).json({ message: 'Timeout' });
     });
 
   } catch (error) {
     console.error('[downloadCV] Erreur serveur :', error.message);
     if (!res.headersSent) {
-      res.status(500).json({ message: 'Erreur serveur', error: error.message });
+      res.status(500).json({ message: error.message });
     }
   }
 };

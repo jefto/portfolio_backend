@@ -21,13 +21,13 @@ const imageStorage = new CloudinaryStorage({
 // ─── Storage pour le CV (PDF) ─────────────────────────────────────────────────
 const cvStorage = new CloudinaryStorage({
   cloudinary,
-  params: async (req, file) => ({
+  params: {
     folder: 'portfolio/cv',
-    resource_type: 'raw',  // obligatoire pour les PDFs
-    type: 'private',       // privé : accès via URL signée uniquement (proxy backend)
+    resource_type: 'raw',
+    type: 'upload',              // 'upload' = URL propre sans signature en base
     format: 'pdf',
-    public_id: `cv-${Date.now()}`,
-  }),
+    public_id: (req, file) => `cv-${Date.now()}`,
+  },
 });
 
 /**
