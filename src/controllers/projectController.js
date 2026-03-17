@@ -1,14 +1,5 @@
-const fs = require('fs');
-const path = require('path');
 const Project = require('../models/Project');
-
-// Helper : supprimer un fichier du disque
-const deleteFile = (filePath) => {
-  const fullPath = path.resolve(filePath);
-  if (fs.existsSync(fullPath)) {
-    fs.unlinkSync(fullPath);
-  }
-};
+const { deleteFromCloudinary } = require('../config/cloudinary');
 
 // @desc    Récupérer tous les projets
 // @route   GET /api/projects
@@ -53,9 +44,9 @@ const createProject = async (req, res, next) => {
   try {
     const { title, description, technologies, client, date, category, type, link } = req.body;
 
-    // Récupérer les fichiers uploadés
-    const coverImage = req.files?.coverImage?.[0]?.path?.replace(/\\/g, '/') || '';
-    const screenshots = req.files?.screenshots?.map((f) => f.path.replace(/\\/g, '/')) || [];
+    // Cloudinary retourne l'URL dans req.file.path
+    const coverImage = req.files?.coverImage?.[0]?.path || '';
+    const screenshots = req.files?.screenshots?.map((f) => f.path) || [];
 
     // Parser technologies si envoyé en JSON string
     let techArray = technologies;
@@ -120,16 +111,18 @@ const updateProject = async (req, res, next) => {
       }
     }
 
-    // Nouvelle cover image → supprimer l'ancienne
+    // Nouvelle cover image → supprimer l'ancienne de Cloudinary
     if (req.files?.coverImage?.[0]) {
-      if (project.coverImage) deleteFile(project.coverImage);
-      updateData.coverImage = req.files.coverImage[0].path.replace(/\\/g, '/');
+      if (project.coverImage) await deleteFromCloudinary(project.coverImage);
+      updateData.coverImage = req.files.coverImage[0].path;
     }
 
-    // Nouvelles screenshots → supprimer les anciennes
+    // Nouvelles screenshots → supprimer les anciennes de Cloudinary
     if (req.files?.screenshots?.length) {
-      project.screenshots.forEach((s) => deleteFile(s));
-      updateData.screenshots = req.files.screenshots.map((f) => f.path.replace(/\\/g, '/'));
+      for (const s of project.screenshots) {
+        await deleteFromCloudinary(s);
+      }
+      updateData.screenshots = req.files.screenshots.map((f) => f.path);
     }
 
     await project.update(updateData);
@@ -150,9 +143,11 @@ const deleteProject = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Projet non trouvé' });
     }
 
-    // Supprimer les fichiers associés
-    if (project.coverImage) deleteFile(project.coverImage);
-    project.screenshots.forEach((s) => deleteFile(s));
+    // Supprimer les fichiers de Cloudinary
+    if (project.coverImage) await deleteFromCloudinary(project.coverImage);
+    for (const s of project.screenshots) {
+      await deleteFromCloudinary(s);
+    }
 
     await project.destroy();
 

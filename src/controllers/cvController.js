@@ -1,11 +1,5 @@
-const fs = require('fs');
-const path = require('path');
 const CV = require('../models/CV');
-
-const deleteFile = (filePath) => {
-  const fullPath = path.resolve(filePath);
-  if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
-};
+const { deleteFromCloudinary } = require('../config/cloudinary');
 
 // @desc    Récupérer les infos du CV actuel
 // @route   GET /api/cv
@@ -31,13 +25,14 @@ const uploadCV = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Aucun fichier PDF fourni' });
     }
 
-    const filePath = req.file.path.replace(/\\/g, '/');
+    // Cloudinary retourne l'URL dans req.file.path
+    const filePath = req.file.path;
     const originalName = req.file.originalname;
 
-    // Supprimer l'ancien CV s'il existe
+    // Supprimer l'ancien CV de Cloudinary s'il existe
     const existing = await CV.findOne();
     if (existing) {
-      deleteFile(existing.filePath);
+      await deleteFromCloudinary(existing.filePath, 'raw');
       await existing.update({ filePath, originalName });
       return res.json({ success: true, data: existing });
     }
@@ -58,7 +53,7 @@ const deleteCV = async (req, res, next) => {
     if (!cv) {
       return res.status(404).json({ success: false, message: 'Aucun CV à supprimer' });
     }
-    deleteFile(cv.filePath);
+    await deleteFromCloudinary(cv.filePath, 'raw');
     await cv.destroy();
     res.json({ success: true, message: 'CV supprimé avec succès' });
   } catch (error) {
@@ -67,4 +62,3 @@ const deleteCV = async (req, res, next) => {
 };
 
 module.exports = { getCV, uploadCV, deleteCV };
-

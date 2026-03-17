@@ -1,61 +1,57 @@
 # ==============================================
 # render.yaml — Blueprint Render pour portfolio-backend
 # ==============================================
-# Ce fichier définit l'infrastructure complète :
+# Infrastructure (plan Free) :
 #   - Un service web Node.js (API Express)
 #   - Une base de données PostgreSQL managée
-#   - Un disque persistant pour les fichiers uploadés
+#   - Stockage des fichiers (images, CV) via Cloudinary
 #
 # Déploiement :
 #   1. Push ce repo sur GitHub/GitLab
 #   2. Sur Render → New → Blueprint
 #   3. Connecter le repo → Render détecte ce fichier automatiquement
 #   4. Cliquer "Apply" pour tout provisionner
+#   5. Ajouter les 3 variables Cloudinary dans Environment sur Render
 # ==============================================
 
 databases:
-  # Base de données PostgreSQL
   - name: portfolio-db
-    plan: free                  # free | starter | standard | ...
+    plan: free
     databaseName: portfolio_backend
     user: portfolio_user
-    region: frankfurt            # frankfurt (EU) ou oregon (US)
+    region: frankfurt
 
 services:
-  # Service Web — API Backend Express
   - type: web
     name: portfolio-backend
     runtime: node
-    region: frankfurt            # même région que la DB pour la latence
-    plan: free                  # free | starter | standard | ...
+    region: frankfurt
+    plan: free
 
-    # Build
     buildCommand: npm install
     startCommand: node server.js
 
-    # Version Node.js
     envVars:
       - key: NODE_VERSION
         value: 20
 
-      # Environnement
       - key: NODE_ENV
         value: production
 
-      # Port (Render injecte automatiquement PORT, mais on le précise)
       - key: PORT
         value: 3000
 
-      # Connexion PostgreSQL — référence automatique à la DB créée ci-dessus
       - key: DATABASE_URL
         fromDatabase:
           name: portfolio-db
           property: connectionString
 
-    # Disque persistant pour les fichiers uploadés (images, CV)
-    # ⚠️ Sans disque, les uploads sont perdus à chaque redéploiement !
-    disk:
-      name: portfolio-uploads
-      mountPath: /opt/render/project/src/uploads
-      sizeGB: 1                 # 1 Go suffit pour un portfolio
+      # Cloudinary — configurer les vraies valeurs sur le dashboard Render
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false              # ne pas committer la valeur, la saisir sur Render
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+
 
