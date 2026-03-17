@@ -18,7 +18,7 @@ if (process.env.API_URL) {
 }
 // Localhost toujours en dernier (fallback dev)
 servers.push({
-  url: `http://localhost:${process.env.PORT || 5000}`,
+  url: `http://localhost:${process.env.PORT || 3001}`,
   description: 'Développement local',
 });
 
