@@ -1,6 +1,6 @@
 const https = require('https');
 const CV = require('../models/CV');
-const { deleteFromCloudinary } = require('../config/cloudinary');
+const { cloudinary, deleteFromCloudinary } = require('../config/cloudinary');
 
 // @desc    Récupérer les infos du CV actuel
 // @route   GET /api/cv
@@ -62,7 +62,7 @@ const deleteCV = async (req, res, next) => {
   }
 };
 
-// @desc    Proxy de téléchargement — stream direct depuis l'URL publique Cloudinary
+// @desc    Proxy de téléchargement — URL signée SDK Cloudinary (type authenticated)
 // @route   GET /api/cv/download
 // @access  Public
 const downloadCV = async (req, res) => {
@@ -74,39 +74,44 @@ const downloadCV = async (req, res) => {
 
     console.log(`[downloadCV] filePath en base : ${cv.filePath}`);
 
-    // Nettoyer l'URL : supprimer toute signature s--xxx-- et forcer /upload/
-    let cleanUrl = cv.filePath;
-    cleanUrl = cleanUrl.replace('/raw/private/', '/raw/upload/');
-    cleanUrl = cleanUrl.replace(/\/s--[^/]+--\//, '/');
+    // Extraire le public_id depuis l'URL
+    const uploadIndex = cv.filePath.indexOf('/upload/');
+    if (uploadIndex === -1) {
+      return res.status(500).json({ message: 'URL invalide', filePath: cv.filePath });
+    }
+    let afterUpload = cv.filePath.substring(uploadIndex + 8);
+    afterUpload = afterUpload.replace(/^v\d+\//, '');
+    const publicId = afterUpload.replace(/\.[^/.]+$/, '');
 
-    console.log(`[downloadCV] URL nettoyée : ${cleanUrl}`);
+    console.log(`[downloadCV] public_id : ${publicId}`);
 
-    // Headers pour forcer le téléchargement
+    // Générer une URL signée valable 60 secondes avec les credentials API
+    const signedUrl = cloudinary.url(publicId, {
+      resource_type: 'raw',
+      type: 'authenticated',
+      sign_url: true,
+      expires_at: Math.floor(Date.now() / 1000) + 60,
+    });
+
+    console.log(`[downloadCV] URL signée : ${signedUrl}`);
+
     const filename = encodeURIComponent(cv.originalName || 'CV.pdf');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`);
     res.setHeader('Cache-Control', 'no-cache');
 
-    // Stream direct depuis l'URL publique Cloudinary
-    const request = https.get(cleanUrl, (response) => {
+    const request = https.get(signedUrl, (response) => {
       console.log(`[downloadCV] Cloudinary status : ${response.statusCode}`);
 
-      if (response.statusCode === 401 || response.statusCode === 403) {
-        console.error(`[downloadCV] Accès refusé. URL tentée : ${cleanUrl}`);
-        if (!res.headersSent) {
-          return res.status(502).json({
-            message: 'Fichier privé sur Cloudinary. Supprimer et re-uploader le CV.',
-            urlTentee: cleanUrl,
-          });
-        }
-        return;
-      }
-
       if (response.statusCode !== 200) {
-        console.error(`[downloadCV] HTTP ${response.statusCode}`);
-        if (!res.headersSent) {
-          res.status(502).json({ message: `Cloudinary a répondu ${response.statusCode}` });
-        }
+        let body = '';
+        response.on('data', chunk => { body += chunk; });
+        response.on('end', () => {
+          console.error(`[downloadCV] Erreur body : ${body}`);
+          if (!res.headersSent) {
+            res.status(502).json({ message: `Cloudinary ${response.statusCode}`, detail: body });
+          }
+        });
         return;
       }
 
@@ -117,13 +122,13 @@ const downloadCV = async (req, res) => {
       response.pipe(res);
 
       response.on('error', (err) => {
-        console.error('[downloadCV] Erreur stream :', err.message);
+        console.error('[downloadCV] Stream error :', err.message);
         if (!res.headersSent) res.status(500).end();
       });
     });
 
     request.on('error', (err) => {
-      console.error('[downloadCV] Erreur requête :', err.message);
+      console.error('[downloadCV] Request error :', err.message);
       if (!res.headersSent) res.status(500).json({ message: err.message });
     });
 
@@ -134,9 +139,7 @@ const downloadCV = async (req, res) => {
 
   } catch (error) {
     console.error('[downloadCV] Erreur serveur :', error.message);
-    if (!res.headersSent) {
-      res.status(500).json({ message: error.message });
-    }
+    if (!res.headersSent) res.status(500).json({ message: error.message });
   }
 };
 
