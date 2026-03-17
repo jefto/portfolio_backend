@@ -24,6 +24,8 @@ const cvStorage = new CloudinaryStorage({
   params: async (req, file) => ({
     folder: 'portfolio/cv',
     resource_type: 'raw',   // CRUCIAL : 'raw' pour tout fichier non-image (PDF)
+    type: 'upload',         // 'upload' = accès public (vs 'private' ou 'authenticated')
+    access_mode: 'public',  // Force l'accès public explicitement
     format: 'pdf',          // Force l'extension .pdf dans l'URL retournée
     public_id: `cv-${Date.now()}`, // Nom unique et prévisible
   }),

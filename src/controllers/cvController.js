@@ -1,6 +1,6 @@
 const { Readable } = require('stream');
 const CV = require('../models/CV');
-const { deleteFromCloudinary } = require('../config/cloudinary');
+const { cloudinary, deleteFromCloudinary } = require('../config/cloudinary');
 
 // @desc    Récupérer les infos du CV actuel
 // @route   GET /api/cv
@@ -72,51 +72,70 @@ const downloadCV = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Aucun CV disponible' });
     }
 
-    let fileUrl = cv.filePath;
-    console.log(`[downloadCV] URL stockée en base : ${fileUrl}`);
+    const storedUrl = cv.filePath;
+    console.log(`[downloadCV] URL stockée : ${storedUrl}`);
 
-    // ── Correction automatique de l'URL Cloudinary ─────────────────────────
-    // Si l'URL a été uploadée avec resource_type 'image' ou 'auto' au lieu de 'raw',
-    // on tente de corriger le chemin pour utiliser /raw/upload/
-    if (fileUrl && fileUrl.includes('cloudinary.com') && !fileUrl.includes('/raw/upload/')) {
-      const fixedUrl = fileUrl
-        .replace('/image/upload/', '/raw/upload/')
-        .replace('/video/upload/', '/raw/upload/')
-        .replace('/auto/upload/', '/raw/upload/');
-      console.log(`[downloadCV] URL corrigée (resource_type raw) : ${fixedUrl}`);
-      fileUrl = fixedUrl;
+    // ── Construire l'URL de fetch ──────────────────────────────────────────
+    // Si l'URL est sur Cloudinary, on génère une URL signée (contourne le 401
+    // même si le fichier est privé / accès restreint).
+    let fetchUrl = storedUrl;
+
+    if (storedUrl && storedUrl.includes('cloudinary.com')) {
+      try {
+        // Extraire le public_id depuis l'URL :
+        // ex: https://res.cloudinary.com/xxx/raw/upload/v123/portfolio/cv/cv-xxx.pdf
+        const parts = storedUrl.split('/upload/');
+        if (parts[1]) {
+          // Retirer le préfixe de version (v123456/) et l'extension
+          const publicId = parts[1]
+            .replace(/^v\d+\//, '')   // enlève "v1234567890/"
+            .replace(/\.pdf$/i, '');  // enlève ".pdf" (Cloudinary stocke sans extension)
+
+          console.log(`[downloadCV] public_id extrait : ${publicId}`);
+
+          // URL signée valable 10 minutes
+          fetchUrl = cloudinary.utils.private_download_url(publicId, 'pdf', {
+            resource_type: 'raw',
+            expires_at: Math.floor(Date.now() / 1000) + 600,
+          });
+
+          console.log(`[downloadCV] URL signée générée`);
+        }
+      } catch (signErr) {
+        console.error(`[downloadCV] Impossible de générer l'URL signée : ${signErr.message}`);
+        // On continue avec l'URL brute stockée
+      }
     }
 
-    // ── Récupérer le PDF depuis Cloudinary côté serveur ────────────────────
+    // ── Fetch côté serveur ────────────────────────────────────────────────
     let cloudinaryResponse;
     try {
-      cloudinaryResponse = await fetch(fileUrl);
-      console.log(`[downloadCV] Réponse Cloudinary : ${cloudinaryResponse.status} ${cloudinaryResponse.statusText}`);
+      cloudinaryResponse = await fetch(fetchUrl);
+      console.log(`[downloadCV] Statut Cloudinary : ${cloudinaryResponse.status}`);
     } catch (fetchErr) {
-      console.error(`[downloadCV] Erreur fetch : ${fetchErr.message}`);
-      // Fallback : rediriger directement vers l'URL Cloudinary
-      return res.redirect(cv.filePath);
+      console.error(`[downloadCV] Erreur réseau : ${fetchErr.message}`);
+      return res.redirect(storedUrl); // fallback : rediriger vers l'URL brute
     }
 
     if (!cloudinaryResponse.ok) {
-      console.error(`[downloadCV] Cloudinary a retourné ${cloudinaryResponse.status} pour : ${fileUrl}`);
-      // Fallback : rediriger directement vers l'URL originale stockée
-      // (le navigateur ouvrira le PDF dans un nouvel onglet)
-      return res.redirect(cv.filePath);
+      console.error(`[downloadCV] Échec fetch : ${cloudinaryResponse.status} — URL : ${fetchUrl}`);
+      // Dernier recours : rediriger vers l'URL Cloudinary directe
+      return res.redirect(storedUrl);
     }
 
     const fileName = cv.originalName || 'CV.pdf';
 
-    // ── Headers qui forcent le téléchargement dans tous les navigateurs ─────
+    // ── Headers qui forcent le téléchargement dans tous les navigateurs ───
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`
     );
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'no-cache');
 
-    // ── Pipe le stream Cloudinary → réponse Express ─────────────────────────
+    // ── Pipe le stream Cloudinary → réponse Express ──────────────────────
     const nodeStream = Readable.fromWeb(cloudinaryResponse.body);
     nodeStream.pipe(res);
   } catch (error) {
