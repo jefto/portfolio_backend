@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
 const projectRoutes = require('./routes/projectRoutes');
 const skillRoutes = require('./routes/skillRoutes');
 const cvRoutes = require('./routes/cvRoutes');
@@ -25,6 +27,26 @@ app.use(express.urlencoded({ extended: true }));
 
 // Servir les fichiers uploadés en statique
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
+// --- Swagger UI (dev & production) ---
+app.use(
+  '/api/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: 'Portfolio API — Docs',
+    swaggerOptions: {
+      persistAuthorization: true,
+      filter: true,           // barre de recherche par tag/endpoint
+      displayRequestDuration: true,
+    },
+  })
+);
+
+// Exposer le JSON brut de la spec (utile pour des outils tiers)
+app.get('/api/docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
 
 // --- Routes ---
 app.use('/api/projects', projectRoutes);

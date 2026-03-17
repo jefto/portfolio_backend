@@ -7,6 +7,8 @@ require('./src/models/Project');
 require('./src/models/Skill');
 require('./src/models/CV');
 
+// Keep-alive — chargé une seule fois, appelé uniquement en production
+const startKeepAlive = require('./src/utils/keepAlive');
 
 const PORT = process.env.PORT || 3001;
 
@@ -21,6 +23,11 @@ const start = async () => {
     console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`);
     console.log(`📦 API projets : http://localhost:${PORT}/api/projects`);
     console.log(`🩺 Santé : http://localhost:${PORT}/api/health`);
+
+    // Activer le keep-alive uniquement en production (Render Free)
+    if (process.env.NODE_ENV === 'production') {
+      startKeepAlive();
+    }
   });
 };
 
