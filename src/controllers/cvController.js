@@ -72,15 +72,42 @@ const downloadCV = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Aucun CV disponible' });
     }
 
-    // Récupérer le PDF depuis Cloudinary côté serveur (pas de restriction CORS)
-    const cloudinaryResponse = await fetch(cv.filePath);
+    let fileUrl = cv.filePath;
+    console.log(`[downloadCV] URL stockée en base : ${fileUrl}`);
+
+    // ── Correction automatique de l'URL Cloudinary ─────────────────────────
+    // Si l'URL a été uploadée avec resource_type 'image' ou 'auto' au lieu de 'raw',
+    // on tente de corriger le chemin pour utiliser /raw/upload/
+    if (fileUrl && fileUrl.includes('cloudinary.com') && !fileUrl.includes('/raw/upload/')) {
+      const fixedUrl = fileUrl
+        .replace('/image/upload/', '/raw/upload/')
+        .replace('/video/upload/', '/raw/upload/')
+        .replace('/auto/upload/', '/raw/upload/');
+      console.log(`[downloadCV] URL corrigée (resource_type raw) : ${fixedUrl}`);
+      fileUrl = fixedUrl;
+    }
+
+    // ── Récupérer le PDF depuis Cloudinary côté serveur ────────────────────
+    let cloudinaryResponse;
+    try {
+      cloudinaryResponse = await fetch(fileUrl);
+      console.log(`[downloadCV] Réponse Cloudinary : ${cloudinaryResponse.status} ${cloudinaryResponse.statusText}`);
+    } catch (fetchErr) {
+      console.error(`[downloadCV] Erreur fetch : ${fetchErr.message}`);
+      // Fallback : rediriger directement vers l'URL Cloudinary
+      return res.redirect(cv.filePath);
+    }
+
     if (!cloudinaryResponse.ok) {
-      return res.status(502).json({ success: false, message: 'Impossible de récupérer le fichier PDF' });
+      console.error(`[downloadCV] Cloudinary a retourné ${cloudinaryResponse.status} pour : ${fileUrl}`);
+      // Fallback : rediriger directement vers l'URL originale stockée
+      // (le navigateur ouvrira le PDF dans un nouvel onglet)
+      return res.redirect(cv.filePath);
     }
 
     const fileName = cv.originalName || 'CV.pdf';
 
-    // Headers qui forcent le téléchargement dans tous les navigateurs
+    // ── Headers qui forcent le téléchargement dans tous les navigateurs ─────
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
@@ -89,7 +116,7 @@ const downloadCV = async (req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'no-cache');
 
-    // Pipe le stream Cloudinary → réponse Express
+    // ── Pipe le stream Cloudinary → réponse Express ─────────────────────────
     const nodeStream = Readable.fromWeb(cloudinaryResponse.body);
     nodeStream.pipe(res);
   } catch (error) {

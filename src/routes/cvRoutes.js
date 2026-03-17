@@ -28,6 +28,20 @@ const { getCV, uploadCV: uploadCVController, deleteCV, downloadCV } = require('.
  */
 router.get('/download', downloadCV);
 
+// ── Diagnostic : affiche l'URL brute stockée en base (à supprimer après debug) ─
+router.get('/debug', async (req, res) => {
+  const CV = require('../models/CV');
+  const cv = await CV.findOne();
+  if (!cv) return res.json({ success: false, message: 'Aucun CV en base' });
+  res.json({
+    success: true,
+    id: cv.id,
+    originalName: cv.originalName,
+    filePath: cv.filePath,
+    createdAt: cv.createdAt,
+  });
+});
+
 /**
  * @openapi
  * /api/cv:
