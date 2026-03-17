@@ -24,7 +24,7 @@ const cvStorage = new CloudinaryStorage({
   params: {
     folder: 'portfolio/cv',
     resource_type: 'raw',
-    type: 'authenticated',  // accès via URL signée SDK (cohérent avec downloadCV)
+    // PAS de type, PAS de access_mode → public par défaut
     format: 'pdf',
     public_id: (req, file) => `cv-${Date.now()}`,
   },

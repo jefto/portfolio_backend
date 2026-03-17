@@ -1,6 +1,6 @@
 const https = require('https');
 const CV = require('../models/CV');
-const { cloudinary, deleteFromCloudinary } = require('../config/cloudinary');
+const { deleteFromCloudinary } = require('../config/cloudinary');
 
 // @desc    Récupérer les infos du CV actuel
 // @route   GET /api/cv
@@ -62,7 +62,7 @@ const deleteCV = async (req, res, next) => {
   }
 };
 
-// @desc    Proxy de téléchargement — URL signée SDK Cloudinary (type authenticated)
+// @desc    Proxy de téléchargement — stream direct depuis l'URL publique normalisée
 // @route   GET /api/cv/download
 // @access  Public
 const downloadCV = async (req, res) => {
@@ -72,44 +72,35 @@ const downloadCV = async (req, res) => {
       return res.status(404).json({ message: 'Aucun CV trouvé' });
     }
 
-    console.log(`[downloadCV] filePath en base : ${cv.filePath}`);
+    console.log(`[downloadCV] filePath brut : ${cv.filePath}`);
 
-    // Extraire le public_id depuis l'URL
-    const uploadIndex = cv.filePath.indexOf('/upload/');
-    if (uploadIndex === -1) {
-      return res.status(500).json({ message: 'URL invalide', filePath: cv.filePath });
-    }
-    let afterUpload = cv.filePath.substring(uploadIndex + 8);
-    afterUpload = afterUpload.replace(/^v\d+\//, '');
-    const publicId = afterUpload.replace(/\.[^/.]+$/, '');
+    // Normaliser l'URL : remplacer /authenticated/ ou /private/ par /upload/
+    // et supprimer le token de signature s--xxx--
+    let publicUrl = cv.filePath
+      .replace(/\/(authenticated|private)\//, '/upload/')
+      .replace(/\/s--[^/]+--\//, '/');
 
-    console.log(`[downloadCV] public_id : ${publicId}`);
-
-    // Générer une URL signée valable 60 secondes avec les credentials API
-    const signedUrl = cloudinary.url(publicId, {
-      resource_type: 'raw',
-      type: 'authenticated',
-      sign_url: true,
-      expires_at: Math.floor(Date.now() / 1000) + 60,
-    });
-
-    console.log(`[downloadCV] URL signée : ${signedUrl}`);
+    console.log(`[downloadCV] URL normalisée : ${publicUrl}`);
 
     const filename = encodeURIComponent(cv.originalName || 'CV.pdf');
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`);
     res.setHeader('Cache-Control', 'no-cache');
 
-    const request = https.get(signedUrl, (response) => {
-      console.log(`[downloadCV] Cloudinary status : ${response.statusCode}`);
+    const request = https.get(publicUrl, (response) => {
+      console.log(`[downloadCV] HTTP status : ${response.statusCode}`);
 
       if (response.statusCode !== 200) {
         let body = '';
-        response.on('data', chunk => { body += chunk; });
+        response.on('data', c => { body += c; });
         response.on('end', () => {
-          console.error(`[downloadCV] Erreur body : ${body}`);
+          console.error(`[downloadCV] Erreur Cloudinary : ${body}`);
           if (!res.headersSent) {
-            res.status(502).json({ message: `Cloudinary ${response.statusCode}`, detail: body });
+            res.status(502).json({
+              message: `Cloudinary a répondu ${response.statusCode}`,
+              urlTentee: publicUrl,
+              detail: body,
+            });
           }
         });
         return;
@@ -122,13 +113,11 @@ const downloadCV = async (req, res) => {
       response.pipe(res);
 
       response.on('error', (err) => {
-        console.error('[downloadCV] Stream error :', err.message);
         if (!res.headersSent) res.status(500).end();
       });
     });
 
     request.on('error', (err) => {
-      console.error('[downloadCV] Request error :', err.message);
       if (!res.headersSent) res.status(500).json({ message: err.message });
     });
 
@@ -138,7 +127,6 @@ const downloadCV = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[downloadCV] Erreur serveur :', error.message);
     if (!res.headersSent) res.status(500).json({ message: error.message });
   }
 };
