@@ -1,3 +1,4 @@
+const { Readable } = require('stream');
 const CV = require('../models/CV');
 const { deleteFromCloudinary } = require('../config/cloudinary');
 
@@ -61,4 +62,39 @@ const deleteCV = async (req, res, next) => {
   }
 };
 
-module.exports = { getCV, uploadCV, deleteCV };
+// @desc    Proxy de téléchargement du CV — force le download en contournant la restriction CORS cross-origin
+// @route   GET /api/cv/download
+// @access  Public
+const downloadCV = async (req, res, next) => {
+  try {
+    const cv = await CV.findOne();
+    if (!cv) {
+      return res.status(404).json({ success: false, message: 'Aucun CV disponible' });
+    }
+
+    // Récupérer le PDF depuis Cloudinary côté serveur (pas de restriction CORS)
+    const cloudinaryResponse = await fetch(cv.filePath);
+    if (!cloudinaryResponse.ok) {
+      return res.status(502).json({ success: false, message: 'Impossible de récupérer le fichier PDF' });
+    }
+
+    const fileName = cv.originalName || 'CV.pdf';
+
+    // Headers qui forcent le téléchargement dans tous les navigateurs
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${encodeURIComponent(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`
+    );
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-cache');
+
+    // Pipe le stream Cloudinary → réponse Express
+    const nodeStream = Readable.fromWeb(cloudinaryResponse.body);
+    nodeStream.pipe(res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getCV, uploadCV, deleteCV, downloadCV };

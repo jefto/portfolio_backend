@@ -1,7 +1,32 @@
 const express = require('express');
 const router = express.Router();
 const { uploadCV } = require('../config/multer');
-const { getCV, uploadCV: uploadCVController, deleteCV } = require('../controllers/cvController');
+const { getCV, uploadCV: uploadCVController, deleteCV, downloadCV } = require('../controllers/cvController');
+
+/**
+ * @openapi
+ * /api/cv/download:
+ *   get:
+ *     summary: Télécharger le CV (proxy — force Content-Disposition attachment)
+ *     description: >
+ *       Récupère le PDF depuis Cloudinary côté serveur et le retourne avec les
+ *       headers `Content-Disposition: attachment` pour forcer le téléchargement,
+ *       contournant la restriction cross-origin de l'attribut HTML `download`.
+ *     tags: [CV]
+ *     responses:
+ *       200:
+ *         description: Fichier PDF retourné en flux
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Aucun CV disponible
+ *       502:
+ *         description: Impossible de récupérer le fichier depuis Cloudinary
+ */
+router.get('/download', downloadCV);
 
 /**
  * @openapi
