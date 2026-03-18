@@ -7,6 +7,8 @@ const swaggerSpec = require('./config/swagger');
 const projectRoutes = require('./routes/projectRoutes');
 const skillRoutes = require('./routes/skillRoutes');
 const cvRoutes = require('./routes/cvRoutes');
+const authRoutes = require('./routes/authRoutes');
+const { protect } = require('./middlewares/authMiddleware');
 const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
@@ -49,6 +51,22 @@ app.get('/api/docs.json', (req, res) => {
 });
 
 // --- Routes ---
+app.use('/api/auth', authRoutes);
+
+// GET reste public (affichage portfolio) — POST/PUT/DELETE protégés
+app.use('/api/projects', (req, res, next) => {
+  if (['POST', 'PUT', 'DELETE'].includes(req.method)) return protect(req, res, next);
+  next();
+});
+app.use('/api/skills', (req, res, next) => {
+  if (['POST', 'PUT', 'DELETE'].includes(req.method)) return protect(req, res, next);
+  next();
+});
+app.use('/api/cv', (req, res, next) => {
+  if (['POST', 'DELETE'].includes(req.method)) return protect(req, res, next);
+  next();
+});
+
 app.use('/api/projects', projectRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/cv', cvRoutes);
