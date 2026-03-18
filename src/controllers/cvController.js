@@ -72,15 +72,12 @@ const downloadCV = async (req, res) => {
       return res.status(404).json({ message: 'Aucun CV trouvé' });
     }
 
-    console.log(`[downloadCV] filePath brut : ${cv.filePath}`);
-
     // Normaliser l'URL : remplacer /authenticated/ ou /private/ par /upload/
     // et supprimer le token de signature s--xxx--
     let publicUrl = cv.filePath
       .replace(/\/(authenticated|private)\//, '/upload/')
       .replace(/\/s--[^/]+--\//, '/');
 
-    console.log(`[downloadCV] URL normalisée : ${publicUrl}`);
 
     const filename = encodeURIComponent(cv.originalName || 'CV.pdf');
     res.setHeader('Content-Type', 'application/pdf');
@@ -88,7 +85,6 @@ const downloadCV = async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
 
     const request = https.get(publicUrl, (response) => {
-      console.log(`[downloadCV] HTTP status : ${response.statusCode}`);
 
       if (response.statusCode !== 200) {
         let body = '';
