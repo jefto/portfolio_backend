@@ -7,6 +7,8 @@ const swaggerSpec = require('./config/swagger');
 const projectRoutes = require('./routes/projectRoutes');
 const skillRoutes = require('./routes/skillRoutes');
 const cvRoutes = require('./routes/cvRoutes');
+const educationRoutes = require('./routes/educationRoutes');
+const statisticRoutes = require('./routes/statisticRoutes');
 const authRoutes = require('./routes/authRoutes');
 const { protect } = require('./middlewares/authMiddleware');
 const errorHandler = require('./middlewares/errorHandler');
@@ -66,10 +68,20 @@ app.use('/api/cv', (req, res, next) => {
   if (['POST', 'DELETE'].includes(req.method)) return protect(req, res, next);
   next();
 });
+app.use('/api/educations', (req, res, next) => {
+  if (['POST', 'PUT', 'DELETE'].includes(req.method)) return protect(req, res, next);
+  next();
+});
+app.use('/api/statistics', (req, res, next) => {
+  if (['PUT'].includes(req.method)) return protect(req, res, next);
+  next();
+});
 
 app.use('/api/projects', projectRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/cv', cvRoutes);
+app.use('/api/educations', educationRoutes);
+app.use('/api/statistics', statisticRoutes);
 
 // Route de santé
 app.get('/api/health', (req, res) => {

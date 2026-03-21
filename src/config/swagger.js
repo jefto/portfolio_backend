@@ -131,6 +131,42 @@ const options = {
           },
         },
 
+        // ── Modèle Education ───────────────────────────────────────────────
+        Education: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer', example: 1 },
+            startYear: { type: 'integer', example: 2023 },
+            endYear: {
+              type: 'integer',
+              nullable: true,
+              description: 'null = En cours',
+              example: null,
+            },
+            title: { type: 'string', example: 'Licence Professionnelle Génie Logiciel' },
+            school: { type: 'string', example: 'École Polytechnique de Lomé' },
+            description: { type: 'string', example: 'Formation en architecture et développement logiciel' },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
+
+        // ── Modèle Statistic ───────────────────────────────────────────────
+        Statistic: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer', example: 1 },
+            completedProjects: { type: 'integer', description: 'Projets complétés (page Dev)', example: 8 },
+            yearsExperience: { type: 'integer', description: "Années d'expérience (page Dev)", example: 1 },
+            masteredTechnologies: { type: 'integer', description: 'Technologies maîtrisées (page Dev)', example: 10 },
+            mockupsCreated: { type: 'integer', description: 'Maquettes créées (page Design)', example: 5 },
+            postersDesigned: { type: 'integer', description: 'Affiches conçues (page Design)', example: 10 },
+            masteredSoftware: { type: 'integer', description: 'Logiciels maîtrisés (page Design)', example: 6 },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
+
         // ── Réponses génériques ────────────────────────────────────────────
         ErrorResponse: {
           type: 'object',
@@ -190,5 +226,4 @@ const options = {
 
 const swaggerSpec = swaggerJsdoc(options);
 module.exports = swaggerSpec;
-
 

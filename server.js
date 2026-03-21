@@ -6,6 +6,8 @@ const app = require('./src/app');
 require('./src/models/Project');
 require('./src/models/Skill');
 require('./src/models/CV');
+require('./src/models/Education');
+require('./src/models/Statistic');
 
 // Keep-alive — chargé une seule fois, appelé uniquement en production
 const startKeepAlive = require('./src/utils/keepAlive');
