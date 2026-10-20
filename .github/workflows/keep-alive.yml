@@ -1,0 +1,31 @@
+name: Keep Render Backend and Supabase Alive
+
+on:
+  schedule:
+    # Exécution automatique toutes les 12 minutes (UTC)
+    # Empêche Render Free de s'endormir (seuil d'inactivité de 15 min)
+    # et exécute SELECT 1 sur Supabase pour empêcher la mise en pause de 7 jours
+    - cron: '*/12 * * * *'
+  workflow_dispatch: # Permet de déclencher manuellement le ping depuis GitHub
+
+jobs:
+  ping:
+    name: Ping Keep-Alive Endpoint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ping Portfolio Backend & Supabase Database
+        run: |
+          TARGET_URL="https://portfolio-backend-4mj2.onrender.com/api/keep-alive"
+          echo "Sending keep-alive request to: $TARGET_URL"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nTIME_TOTAL:%{time_total}s" --max-time 120 "$TARGET_URL")
+          echo "$RESPONSE"
+
+          # Vérifier le code de statut HTTP
+          STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+            echo "Keep-alive ping successful (Status: $STATUS)"
+          else
+            echo "Warning: Keep-alive returned status $STATUS (server might be waking up)"
+          fi
