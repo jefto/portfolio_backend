@@ -33,9 +33,9 @@ if (process.env.DATABASE_URL) {
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
-    console.log('✅ PostgreSQL connecté avec succès');
+    console.log('[DB] PostgreSQL connecté avec succès');
   } catch (error) {
-    console.error(`❌ Erreur de connexion PostgreSQL : ${error.message}`);
+    console.error(`[DB] Erreur de connexion PostgreSQL : ${error.message}`);
     process.exit(1);
   }
 };

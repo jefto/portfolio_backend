@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/db');
 
-// Singleton : une seule ligne en base contenant toutes les stats du portfolio
+// Singleton : une seule ligne en base contenant toutes les stats, coordonnées et photo du hero
 const Statistic = sequelize.define(
   'Statistic',
   {
@@ -54,6 +54,50 @@ const Statistic = sequelize.define(
       field: 'mastered_software',
       validate: { min: 0 },
     },
+    // --- Coordonnées de Contact (Modifiables depuis le Back-Office) ---
+    contactPhone: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: '+228 91 02 01 71',
+      field: 'contact_phone',
+    },
+    contactEmail: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'jefftchamie@gmail.com',
+      field: 'contact_email',
+    },
+    contactLocation: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'Lomé, Togo',
+      field: 'contact_location',
+    },
+    // --- Photo de la Hero Section & Paramètres de Cadrage ---
+    heroPhotoUrl: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: null,
+      field: 'hero_photo_url',
+    },
+    heroPhotoScale: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 1.0,
+      field: 'hero_photo_scale',
+    },
+    heroPhotoX: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0.0,
+      field: 'hero_photo_x',
+    },
+    heroPhotoY: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+      defaultValue: 0.0,
+      field: 'hero_photo_y',
+    },
   },
   {
     tableName: 'statistics',
@@ -63,4 +107,3 @@ const Statistic = sequelize.define(
 );
 
 module.exports = Statistic;
-

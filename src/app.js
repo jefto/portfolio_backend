@@ -8,6 +8,8 @@ const projectRoutes = require('./routes/projectRoutes');
 const skillRoutes = require('./routes/skillRoutes');
 const cvRoutes = require('./routes/cvRoutes');
 const educationRoutes = require('./routes/educationRoutes');
+const experienceRoutes = require('./routes/experienceRoutes');
+const volunteeringRoutes = require('./routes/volunteeringRoutes');
 const statisticRoutes = require('./routes/statisticRoutes');
 const authRoutes = require('./routes/authRoutes');
 const { protect } = require('./middlewares/authMiddleware');
@@ -40,7 +42,7 @@ app.use(
     customSiteTitle: 'Portfolio API — Docs',
     swaggerOptions: {
       persistAuthorization: true,
-      filter: true,           // barre de recherche par tag/endpoint
+      filter: true,
       displayRequestDuration: true,
     },
   })
@@ -72,8 +74,16 @@ app.use('/api/educations', (req, res, next) => {
   if (['POST', 'PUT', 'DELETE'].includes(req.method)) return protect(req, res, next);
   next();
 });
+app.use('/api/experiences', (req, res, next) => {
+  if (['POST', 'PUT', 'DELETE'].includes(req.method)) return protect(req, res, next);
+  next();
+});
+app.use('/api/volunteering', (req, res, next) => {
+  if (['POST', 'PUT', 'DELETE'].includes(req.method)) return protect(req, res, next);
+  next();
+});
 app.use('/api/statistics', (req, res, next) => {
-  if (['PUT'].includes(req.method)) return protect(req, res, next);
+  if (['POST', 'PUT'].includes(req.method)) return protect(req, res, next);
   next();
 });
 
@@ -81,12 +91,15 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/skills', skillRoutes);
 app.use('/api/cv', cvRoutes);
 app.use('/api/educations', educationRoutes);
+app.use('/api/experiences', experienceRoutes);
+app.use('/api/volunteering', volunteeringRoutes);
 app.use('/api/statistics', statisticRoutes);
 
-// Route de santé
-app.get('/api/health', (req, res) => {
-  res.json({ success: true, message: 'API Portfolio opérationnelle 🚀' });
-});
+// Routes de santé et Keep-Alive (interrogent activement Supabase pour maintenir la BD active)
+const { checkHealth } = require('./controllers/healthController');
+app.get('/api/health', checkHealth);
+app.get('/api/keep-alive', checkHealth);
+app.get('/health', checkHealth);
 
 // 404
 app.use((req, res) => {
@@ -97,4 +110,3 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 module.exports = app;
-
